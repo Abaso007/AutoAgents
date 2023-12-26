@@ -101,9 +101,7 @@ class CheckRoles(Action):
         question = re.findall('## Question or Task:([\s\S]*?)##', str(context))[0]
         created_roles = re.findall('## Created Roles List:([\s\S]*?)##', str(context))[0]
         selected_roles = re.findall('## Selected Roles List:([\s\S]*?)##', str(context))[0]
-        
-        prompt = PROMPT_TEMPLATE.format(question=question, history=history, existing_roles=ROLES_LIST, created_roles=created_roles, selected_roles=selected_roles, format_example=FORMAT_EXAMPLE, tools=TOOLS)
-        rsp = await self._aask_v1(prompt, "task", OUTPUT_MAPPING)
 
-        return rsp
+        prompt = PROMPT_TEMPLATE.format(question=question, history=history, existing_roles=ROLES_LIST, created_roles=created_roles, selected_roles=selected_roles, format_example=FORMAT_EXAMPLE, tools=TOOLS)
+        return await self._aask_v1(prompt, "task", OUTPUT_MAPPING)
 

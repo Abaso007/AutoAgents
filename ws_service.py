@@ -62,7 +62,7 @@ async def handle_message(task_id=None, message=None, alg_msg_queue=None, proxy=N
         logger.error("".join(error_message))
 
 def handle_message_wrapper(task_id=None, message=None, alg_msg_queue=None, proxy=None, llm_api_key=None, serpapi_key=None):
-    logger.warning("New task:"+current_process().name)
+    logger.warning(f"New task:{current_process().name}")
     asyncio.run(handle_message(task_id, message, alg_msg_queue, proxy, llm_api_key, serpapi_key))
 
 def clear_queue(alg_msg_queue:Queue=None):
@@ -83,17 +83,17 @@ async def read_msg_worker(websocket=None, alg_msg_queue=None, proxy=None, llm_ap
             # force interrupt a specific task
             task_id = message["data"]["task_id"]
             if process and process.is_alive() and process.name == task_id:
-                logger.warning("Interrupt task:" + process.name)
+                logger.warning(f"Interrupt task:{process.name}")
                 process.terminate()
                 process = None
             clear_queue(alg_msg_queue=alg_msg_queue)
             alg_msg_queue.put_nowait(format_message(action=MessageType.Interrupt.value, data={'task_id': task_id}))
             alg_msg_queue.put_nowait(format_message(action=MessageType.RunTask.value, data={'task_id': task_id}, msg="finished"))
-                
+
         elif message["action"] == MessageType.RunTask.value:
             # auto interrupt previous task
             if process and process.is_alive():
-                logger.warning("Interrupt task:" + process.name)
+                logger.warning(f"Interrupt task:{process.name}")
                 process.terminate()
                 process = None
                 clear_queue(alg_msg_queue=alg_msg_queue)
@@ -103,14 +103,14 @@ async def read_msg_worker(websocket=None, alg_msg_queue=None, proxy=None, llm_ap
             process.daemon = True
             process.name = task_id
             process.start()
-        
+
     # auto terminate process
     if process and process.is_alive():
-        logger.warning("Interrupt task:" + process.name)
+        logger.warning(f"Interrupt task:{process.name}")
         process.terminate()
         process = None
         clear_queue(alg_msg_queue=alg_msg_queue)
-    
+
     raise websockets.exceptions.ConnectionClosed(0, "websocket closed")
 
 # send

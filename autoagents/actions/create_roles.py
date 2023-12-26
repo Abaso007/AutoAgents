@@ -137,9 +137,8 @@ class CreateRoles(Action):
 
         from autoagents.roles import ROLES_LIST
         prompt = PROMPT_TEMPLATE.format(context=context, format_example=FORMAT_EXAMPLE, existing_roles=ROLES_LIST, tools=TOOLS, history=history, suggestions=suggestions)
-        
-        rsp = await self._aask_v1(prompt, "task", OUTPUT_MAPPING)
-        return rsp
+
+        return await self._aask_v1(prompt, "task", OUTPUT_MAPPING)
 
 
 class AssignTasks(Action):
