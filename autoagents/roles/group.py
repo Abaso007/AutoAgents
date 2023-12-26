@@ -41,10 +41,9 @@ class Group(Role):
     async def _think(self) -> None:        
         if len(self.steps) > 1:
             self.steps.pop(0)
-            states_prompt = ''
-            for i, step in enumerate(self.steps):
-                states_prompt += str(i+1) + ':' + step + '\n'
-            
+            states_prompt = ''.join(
+                f'{str(i + 1)}:{step}' + '\n' for i, step in enumerate(self.steps)
+            )
             # logger.info(f"{self._setting}: ready to {self.next_action}")
             # task = self._rc.important_memory[0]
             # content = [task, str(self._rc.env.new_roles_args), str(self._rc.important_memory), states_prompt]
@@ -57,7 +56,7 @@ class Group(Role):
             print('*******Next Steps********')
             print(states_prompt)
             print('************************')
-            self.next_state = []                
+            self.next_state = []
             for i, state in enumerate(self._actions):
                 name = str(state).replace('_Action', '').replace('_', ' ')
                 if name in self.next_step.split(':')[0]:
@@ -71,17 +70,17 @@ class Group(Role):
     async def _act(self) -> Message:
         if self.next_step == '':
             return Message(content='', role='')
-        
+
         completed_steps, num_steps = '', 5
         message = CONTENT_TEMPLATE.format(previous=str(self._rc.important_memory), step=self.next_step)
         # context = str(self._rc.important_memory) + addition
 
-        steps, consensus = 0, [0 for i in self.next_state]
+        steps, consensus = 0, [0 for _ in self.next_state]
         while len(self.next_state) > sum(consensus) and steps < num_steps:
 
             if steps > num_steps - 2:
                 completed_steps += '\n You should synthesize the responses of previous steps and provide the final feedback.'
-                
+
             for i, state in enumerate(self.next_state):
                 self._set_state(state)
                 logger.info(f"{self._setting}: ready to {self._rc.todo}")
@@ -91,7 +90,12 @@ class Group(Role):
                 response = await self._rc.todo.run(context)
 
                 if hasattr(response.instruct_content, 'Action'):
-                    completed_steps += f'>{self._rc.todo} Substep:\n' + response.instruct_content.Action + '\n>Subresponse:\n' + response.instruct_content.Response + '\n'
+                    completed_steps += (
+                        f'>{self._rc.todo} Substep:\n{response.instruct_content.Action}'
+                        + '\n>Subresponse:\n'
+                        + response.instruct_content.Response
+                        + '\n'
+                    )
                 else:
                     consensus[i] = 1
                 time.sleep(SLEEP_RATE)
@@ -100,28 +104,29 @@ class Group(Role):
 
         # response.content = completed_steps
         requirement_type = type('Requirement_Group', (Requirement,), {})
-        if isinstance(response, ActionOutput):
-            msg = Message(content=response.content, instruct_content=response.instruct_content, cause_by=self._watch_action)
-        else:
-            msg = Message(content=response, cause_by=self._watch_action)
-        # self._rc.memory.add(msg)
-
-        return msg
+        return (
+            Message(
+                content=response.content,
+                instruct_content=response.instruct_content,
+                cause_by=self._watch_action,
+            )
+            if isinstance(response, ActionOutput)
+            else Message(content=response, cause_by=self._watch_action)
+        )
 
     async def _observe(self) -> int:
         """从环境中观察，获得全部重要信息，并加入记忆"""
         if not self._rc.env:
             return 0
         env_msgs = self._rc.env.memory.get()
-        
+
         observed = self._rc.env.memory.get_by_actions(self._rc.watch)
-        
+
         news = self._rc.memory.remember(observed)  # remember recent exact or similar memories
 
         for i in env_msgs:
             self.recv(i)
 
-        news_text = [f"{i.role}: {i.content[:20]}..." for i in news]
-        if news_text:
+        if news_text := [f"{i.role}: {i.content[:20]}..." for i in news]:
             logger.debug(f'{self._setting} observed: {news_text}')
         return len(news)

@@ -147,12 +147,8 @@ class OpenAIGPTAPI(BaseGPTAPI, RateLimiter):
             openai.proxy = self.proxy
         else:
             litellm.api_key = config.openai_api_key
-        
-        if self.api_key != '':
-            litellm.api_key = self.api_key
-        else:
-            litellm.api_key = config.openai_api_key
-        
+
+        litellm.api_key = self.api_key if self.api_key != '' else config.openai_api_key
         if config.openai_api_base:
             litellm.api_base = config.openai_api_base
         if config.openai_api_type:
@@ -183,25 +179,25 @@ class OpenAIGPTAPI(BaseGPTAPI, RateLimiter):
         return full_reply_content
 
     def _cons_kwargs(self, messages: list[dict]) -> dict:
-        if CONFIG.openai_api_type == 'azure':
-            kwargs = {
+        return (
+            {
                 "deployment_id": CONFIG.deployment_id,
                 "messages": messages,
                 "max_tokens": CONFIG.max_tokens_rsp,
                 "n": 1,
                 "stop": self.stops,
-                "temperature": 0.3
+                "temperature": 0.3,
             }
-        else:
-            kwargs = {
+            if CONFIG.openai_api_type == 'azure'
+            else {
                 "model": self.model,
                 "messages": messages,
                 "max_tokens": CONFIG.max_tokens_rsp,
                 "n": 1,
                 "stop": self.stops,
-                "temperature": 0.3
+                "temperature": 0.3,
             }
-        return kwargs
+        )
 
     async def _achat_completion(self, messages: list[dict]) -> dict:
         rsp = await self.llm.ChatCompletion.acreate(**self._cons_kwargs(messages))
@@ -232,12 +228,9 @@ class OpenAIGPTAPI(BaseGPTAPI, RateLimiter):
         return self.get_choice_text(rsp)
 
     def _calc_usage(self, messages: list[dict], rsp: str) -> dict:
-        usage = {}
         prompt_tokens = count_message_tokens(messages, self.model)
         completion_tokens = count_string_tokens(rsp, self.model)
-        usage['prompt_tokens'] = prompt_tokens
-        usage['completion_tokens'] = completion_tokens
-        return usage
+        return {'prompt_tokens': prompt_tokens, 'completion_tokens': completion_tokens}
 
     async def acompletion_batch(self, batch: list[list[dict]]) -> list[dict]:
         """返回完整JSON"""

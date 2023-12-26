@@ -84,7 +84,5 @@ class NextAction(Action):
                                         format_example=FORMAT_EXAMPLE,
                                         )
 
-        rsp = await self._aask_v1(prompt, "task", OUTPUT_MAPPING)
-
-        return rsp
+        return await self._aask_v1(prompt, "task", OUTPUT_MAPPING)
 
