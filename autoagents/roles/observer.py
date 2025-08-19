@@ -26,15 +26,14 @@ class ObserverPlans(Role):
         if not self._rc.env:
             return 0
         env_msgs = self._rc.env.memory.get()
-        
+
         observed = self._rc.env.memory.get_by_and_actions(self._rc.watch)
-        
+
         news = self._rc.memory.remember(observed)  # remember recent exact or similar memories
 
         for i in env_msgs:
             self.recv(i)
 
-        news_text = [f"{i.role}: {i.content[:20]}..." for i in news]
-        if news_text:
+        if news_text := [f"{i.role}: {i.content[:20]}..." for i in news]:
             logger.debug(f'{self._setting} observed: {news_text}')
         return len(news)

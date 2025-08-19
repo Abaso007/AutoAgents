@@ -140,8 +140,8 @@ class Environment(BaseModel):
             filename = message.instruct_content.Key
             file_type = re.findall('```(.*?)\n', str(message.content))[0]
             file_content = re.findall(f'```{file_type}([\s\S]*?)```', str(message.content))[0]
-        
-        if message.role and 'ActionObserver' != message.role:
+
+        if message.role and message.role != 'ActionObserver':
             if hasattr(message.instruct_content, 'Response'):
                 content = message.instruct_content.Response
             else:
@@ -159,9 +159,9 @@ class Environment(BaseModel):
 
             if self.alg_msg_queue:
                 self.alg_msg_queue.put_nowait(format_message(action=MessageType.RunTask.value, data={'task_id': self.task_id, 'task_message':msg}))
-        
+
         if 'Agents Observer' in message.role:
-            
+
             # send role list
             msg = {   
                 'timestamp': timestamp(),
