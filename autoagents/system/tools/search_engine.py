@@ -10,26 +10,25 @@ from __future__ import annotations
 
 import json
 
-from autoagents.system.config import Config
+import cfg
 from autoagents.system.logs import logger
 from .search_engine_serpapi import SerpAPIWrapper
 from .search_engine_serper import SerperWrapper
 
-config = Config()
 from autoagents.system.tools import SearchEngineType
 
 
 class SearchEngine:
     """
-    TODO: 合入Google Search 并进行反代
-    注：这里Google需要挂Proxifier或者类似全局代理
+    TODO: Integrate Google Search and handle proxying if needed.
+    Note: Google may require a system/global proxy setup.
     - DDG: https://pypi.org/project/duckduckgo-search/
     - GOOGLE: https://programmablesearchengine.google.com/controlpanel/overview?cx=63f9de531d0e24de9
     """
     def __init__(self, engine=None, run_func=None, serpapi_api_key=None):
-        self.config = Config()
+        # Read settings from centralized cfg
         self.run_func = run_func
-        self.engine = engine or self.config.search_engine
+        self.engine = engine or cfg.SEARCH_ENGINE
         self.serpapi_api_key = serpapi_api_key
 
     @classmethod
@@ -73,8 +72,8 @@ def google_official_search(query: str, num_results: int = 8, focus=['snippet', '
     from googleapiclient.errors import HttpError
 
     try:
-        api_key = config.google_api_key
-        custom_search_engine_id = config.google_cse_id
+        api_key = cfg.GOOGLE_API_KEY
+        custom_search_engine_id = cfg.GOOGLE_CSE_ID
 
         with build("customsearch", "v1", developerKey=api_key) as service:
 
@@ -121,7 +120,7 @@ def safe_google_results(results: str | list) -> str:
     """
     if isinstance(results, list):
         safe_message = json.dumps(
-            # FIXME: # .encode("utf-8", "ignore") 这里去掉了，但是AutoGPT里有，很奇怪
+            # FIXME: Removed .encode("utf-8", "ignore"); AutoGPT kept it - odd.
             [result for result in results]
         )
     else:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# @Desc   : the implement of Long-term memory
+# Description: Implementation of long-term memory
 # https://github.com/geekan/MetaGPT/blob/main/metagpt/memory/longterm_memory.py
 
 from typing import Iterable, Type
@@ -13,9 +13,9 @@ from .memory_storage import MemoryStorage
 
 class LongTermMemory(Memory):
     """
-    The Long-term memory for Roles
-    - recover memory when it staruped
-    - update memory when it changed
+    Long-term memory component for a role.
+    - Restore historical memory for the role at startup
+    - Update storage when memory changes
     """
 
     def __init__(self):
@@ -28,10 +28,9 @@ class LongTermMemory(Memory):
         messages = self.memory_storage.recover_memory(role_id)
         self.rc = rc
         if not self.memory_storage.is_initialized:
-            logger.warning(f'It may the first time to run Agent {role_id}, the long-term memory is empty')
+            logger.warning(f'Likely first run for agent {role_id}; long-term memory is empty')
         else:
-            logger.warning(f'Agent {role_id} has existed memory storage with {len(messages)} messages '
-                           f'and has recovered them.')
+            logger.warning(f'Agent {role_id} has an existing memory store with {len(messages)} records; restored')
         self.msg_from_recover = True
         self.add_batch(messages)
         self.msg_from_recover = False
@@ -40,24 +39,24 @@ class LongTermMemory(Memory):
         super(LongTermMemory, self).add(message)
         for action in self.rc.watch:
             if message.cause_by == action and not self.msg_from_recover:
-                # currently, only add role's watching messages to its memory_storage
-                # and ignore adding messages from recover repeatedly
+                # Only write messages watched by the role into memory_storage
+                # Ignore duplicates from the recovery process
                 self.memory_storage.add(message)
 
     def remember(self, observed: list[Message], k=10) -> list[Message]:
         """
-        remember the most similar k memories from observed Messages, return all when k=0
-            1. remember the short-term memory(stm) news
-            2. integrate the stm news with ltm(long-term memory) news
+        Retrieve the most similar k memories from observed messages (return all if k=0).
+            1. Get candidates from short-term memory (STM)
+            2. Integrate STM with long-term memory (LTM)
         """
-        stm_news = super(LongTermMemory, self).remember(observed)  # shot-term memory news
+        stm_news = super(LongTermMemory, self).remember(observed)  # STM candidates
         if not self.memory_storage.is_initialized:
-            # memory_storage hasn't initialized, use default `remember` to get stm_news
+            # memory_storage not initialized; use default `remember` result
             return stm_news
 
         ltm_news: list[Message] = []
         for mem in stm_news:
-            # integrate stm & ltm
+            # Integrate STM and LTM
             mem_searched = self.memory_storage.search(mem)
             if len(mem_searched) > 0:
                 ltm_news.append(mem)
@@ -65,7 +64,7 @@ class LongTermMemory(Memory):
 
     def delete(self, message: Message):
         super(LongTermMemory, self).delete(message)
-        # TODO delete message in memory_storage
+        # TODO: delete the corresponding message from memory_storage
 
     def clear(self):
         super(LongTermMemory, self).clear()

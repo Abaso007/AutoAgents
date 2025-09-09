@@ -17,13 +17,13 @@ with open(path.join(here, "requirements.txt"), encoding="utf-8") as f:
 
 setup(
     name="autoagents",
-    version="0.1",
+    version="0.2",
     description="The Automatic Agents Generation Framework",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/LinkSoul-AI/AutoAgents",
     author="Guangyao Chen",
-    author_email="gy.chen@foxmail.com",
+    author_email="gychen023@gmail.com",
     license="Apache 2.0",
     keywords="autoagent multi-agent agent-generation gpt llm",
     packages=find_packages(exclude=["contrib", "docs", "examples"]),

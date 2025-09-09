@@ -8,11 +8,18 @@
 from pathlib import Path
 
 import pandas as pd
-from langchain.document_loaders import (
-    TextLoader,
-    UnstructuredPDFLoader,
-    UnstructuredWordDocumentLoader,
-)
+try:
+    from langchain_community.document_loaders import (
+        TextLoader,
+        UnstructuredPDFLoader,
+        UnstructuredWordDocumentLoader,
+    )
+except Exception:  # fallback for older langchain versions
+    from langchain.document_loaders import (
+        TextLoader,
+        UnstructuredPDFLoader,
+        UnstructuredWordDocumentLoader,
+    )
 from langchain.text_splitter import CharacterTextSplitter
 from tqdm import tqdm
 

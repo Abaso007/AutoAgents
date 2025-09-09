@@ -21,7 +21,7 @@ class RawMessage(TypedDict):
 
 @dataclass
 class Message:
-    """list[<role>: <content>]"""
+    """Message structure: list[<role>: <content>]."""
     content: str
     instruct_content: BaseModel = field(default=None)
     role: str = field(default='user')  # system / user / assistant
@@ -45,21 +45,21 @@ class Message:
 
 @dataclass
 class UserMessage(Message):
-    """便于支持OpenAI的消息"""
+    """OpenAI-compatible user message."""
     def __init__(self, content: str):
         super().__init__(content, 'user')
 
 
 @dataclass
 class SystemMessage(Message):
-    """便于支持OpenAI的消息"""
+    """OpenAI-compatible system message."""
     def __init__(self, content: str):
         super().__init__(content, 'system')
 
 
 @dataclass
 class AIMessage(Message):
-    """便于支持OpenAI的消息"""
+    """OpenAI-compatible assistant message."""
     def __init__(self, content: str):
         super().__init__(content, 'assistant')
 

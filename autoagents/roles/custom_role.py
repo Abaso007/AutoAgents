@@ -7,8 +7,6 @@ from pydantic import BaseModel, Field
 from autoagents.roles import Role
 from autoagents.actions import CustomAction, Action, ActionOutput
 
-# from autoagents.environment import Environment
-from autoagents.system.config import CONFIG
 from autoagents.system.llm import LLM
 from autoagents.system.logs import logger
 from autoagents.system.memory import Memory, LongTermMemory

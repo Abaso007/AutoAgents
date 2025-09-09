@@ -100,7 +100,7 @@ class WriteDesign(Action):
         try:
             shutil.rmtree(workspace)
         except FileNotFoundError:
-            pass  # 文件夹不存在，但我们不在意
+            pass  # Folder does not exist; ignore
         workspace.mkdir(parents=True, exist_ok=True)
 
     def _save_prd(self, docs_path, resources_path, prd):

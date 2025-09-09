@@ -27,7 +27,7 @@ class NotConfiguredException(Exception):
 
 class Config(metaclass=Singleton):
     """
-    常规使用方法：
+    Typical usage:
     config = Config("config.yaml")
     secret_key = config.get_key("MY_SECRET_KEY")
     print("Secret key:", secret_key)
@@ -79,14 +79,14 @@ class Config(metaclass=Singleton):
         self.total_cost = 0.0
 
     def _init_with_config_files_and_env(self, configs: dict, yaml_file):
-        """从config/key.yaml / config/config.yaml / env三处按优先级递减加载"""
+        """Load from config/key.yaml, config/config.yaml, and env (descending priority)."""
         configs.update(os.environ)
 
         for _yaml_file in [yaml_file, self.key_yaml_file]:
             if not _yaml_file.exists():
                 continue
 
-            # 加载本地 YAML 文件
+            # Load local YAML file
             with open(_yaml_file, "r", encoding="utf-8") as file:
                 yaml_data = yaml.safe_load(file)
                 if not yaml_data:
@@ -98,7 +98,7 @@ class Config(metaclass=Singleton):
         return self._configs.get(*args, **kwargs)
 
     def get(self, key, *args, **kwargs):
-        """从config/key.yaml / config/config.yaml / env三处找值，找不到报错"""
+        """Fetch value from config/key.yaml, config/config.yaml, or env; raise if missing."""
         value = self._get(key, *args, **kwargs)
         if value is None:
             raise ValueError(f"Key '{key}' not found in environment variables or in the YAML file")

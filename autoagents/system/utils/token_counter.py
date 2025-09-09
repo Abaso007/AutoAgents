@@ -27,12 +27,24 @@ TOKEN_COSTS = {
 
 
 def count_message_tokens(messages, model="gpt-3.5-turbo-0613"):
-    """Return the number of tokens used by a list of messages."""
+    """Return the number of tokens used by a list of messages.
+
+    Falls back to a reasonable ChatML heuristic for unknown models
+    instead of raising, so newer model names won't break execution.
+    """
+    # Choose an encoding, falling back safely if the model is unknown
     try:
         encoding = tiktoken.encoding_for_model(model)
     except KeyError:
+        # Default to cl100k_base which works for GPT-3.5/4 style models
         print("Warning: model not found. Using cl100k_base encoding.")
-        encoding = tiktoken.get_encoding("cl100k_base")
+        try:
+            encoding = tiktoken.get_encoding("cl100k_base")
+        except Exception:
+            # As a final safeguard, use tiktoken's default encoding
+            encoding = tiktoken.get_encoding("gpt2")
+
+    # Token accounting per message based on ChatML format
     if model in {
         "gpt-3.5-turbo-0613",
         "gpt-3.5-turbo-16k-0613",
@@ -40,22 +52,32 @@ def count_message_tokens(messages, model="gpt-3.5-turbo-0613"):
         "gpt-4-32k-0314",
         "gpt-4-0613",
         "gpt-4-32k-0613",
-        }:
+    }:
         tokens_per_message = 3
         tokens_per_name = 1
     elif model == "gpt-3.5-turbo-0301":
-        tokens_per_message = 4  # every message follows <|start|>{role/name}\n{content}<|end|>\n
-        tokens_per_name = -1  # if there's a name, the role is omitted
+        # every message follows <|start|>{role/name}\n{content}<|end|>\n
+        tokens_per_message = 4
+        # if there's a name, the role is omitted
+        tokens_per_name = -1
     elif "gpt-3.5-turbo" in model:
-        print("Warning: gpt-3.5-turbo may update over time. Returning num tokens assuming gpt-3.5-turbo-0613.")
+        print(
+            "Warning: gpt-3.5-turbo may update over time. Returning num tokens assuming gpt-3.5-turbo-0613."
+        )
         return count_message_tokens(messages, model="gpt-3.5-turbo-0613")
     elif "gpt-4" in model:
-        print("Warning: gpt-4 may update over time. Returning num tokens assuming gpt-4-0613.")
+        print(
+            "Warning: gpt-4 may update over time. Returning num tokens assuming gpt-4-0613."
+        )
         return count_message_tokens(messages, model="gpt-4-0613")
     else:
-        raise NotImplementedError(
-            f"""num_tokens_from_messages() is not implemented for model {model}. See https://github.com/openai/openai-python/blob/main/chatml.md for information on how messages are converted to tokens."""
+        # Default heuristic for unknown/new model names
+        # Most ChatML-compatible chat models follow 3/1 accounting
+        print(
+            f"Warning: Unknown model '{model}'. Using ChatML heuristic (tokens_per_message=3, tokens_per_name=1)."
         )
+        tokens_per_message = 3
+        tokens_per_name = 1
     num_tokens = 0
     for message in messages:
         num_tokens += tokens_per_message
@@ -78,5 +100,12 @@ def count_string_tokens(string: str, model_name: str) -> int:
     Returns:
         int: The number of tokens in the text string.
     """
-    encoding = tiktoken.encoding_for_model(model_name)
+    try:
+        encoding = tiktoken.encoding_for_model(model_name)
+    except KeyError:
+        # Fallback encodings for unknown models
+        try:
+            encoding = tiktoken.get_encoding("cl100k_base")
+        except Exception:
+            encoding = tiktoken.get_encoding("gpt2")
     return len(encoding.encode(string))

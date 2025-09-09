@@ -6,7 +6,10 @@
 from typing import List
 from pathlib import Path
 
-from langchain.vectorstores.faiss import FAISS
+try:
+    from langchain_community.vectorstores import FAISS
+except Exception:  # fallback for older langchain versions
+    from langchain.vectorstores.faiss import FAISS
 
 from autoagents.system.const import DATA_PATH, MEM_TTL
 from autoagents.system.logs import logger

@@ -8,7 +8,6 @@ from autoagents.actions import Requirement, CreateRoles, CheckRoles, CheckPlans
 from autoagents.roles import Role
 
 from autoagents.actions import Action, ActionOutput
-from autoagents.system.config import CONFIG
 from autoagents.system.llm import LLM
 from autoagents.system.logs import logger
 from autoagents.system.memory import Memory, LongTermMemory

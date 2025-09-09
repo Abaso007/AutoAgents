@@ -11,7 +11,7 @@ from .roles import Role
 from .actions import Requirement
 from .environment import Environment
 
-from .system.config import CONFIG
+import cfg
 from .system.logs import logger
 from .system.schema import Message
 from .system.utils.common import NoMoneyException
@@ -29,12 +29,12 @@ class Explorer(BaseModel):
 
     def invest(self, investment: float):
         self.investment = investment
-        CONFIG.max_budget = investment
+        cfg.MAX_BUDGET = investment
         logger.info(f'Investment: ${investment}.')
 
     def _check_balance(self):
-        if CONFIG.total_cost > CONFIG.max_budget:
-            raise NoMoneyException(CONFIG.total_cost, f'Insufficient funds: {CONFIG.max_budget}')
+        if cfg.TOTAL_COST > cfg.MAX_BUDGET:
+            raise NoMoneyException(cfg.TOTAL_COST, f'Insufficient funds: {cfg.MAX_BUDGET}')
 
     async def start_project(self, idea=None, llm_api_key=None, proxy=None, serpapi_key=None, task_id=None, alg_msg_queue=None):
         self.environment.llm_api_key = llm_api_key

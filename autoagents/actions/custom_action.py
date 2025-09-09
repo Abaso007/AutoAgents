@@ -17,7 +17,7 @@ from autoagents.system.utils.common import CodeParser
 
 PROMPT_TEMPLATE = '''
 -----
-{role} Base on the following execution result of the previous agents and completed steps and their responses, complete the following tasks as best you can. 
+{role} Based on prior agents' results and completed steps, complete the task as best you can.
 
 # Task {context}
 
@@ -26,34 +26,33 @@ PROMPT_TEMPLATE = '''
 
 # Execution Result of Previous Agents {previous}
 
-# Completed Steps and Responses {completed_steps} 
+# Completed Steps and Responses {completed_steps}
 
 You have access to the following tools:
 # Tools {tool}
 
 # Steps
-1. You should understand and analyze the execution result of the previous agents.
-2. You should understand, analyze, and break down the task and use tools to assist you in completing it.
-3. You should analyze the completed steps and their outputs and identify the current step to be completed, then output the current step in the section 'CurrentStep'.
-3.1 If there are no completed steps, you need to analyze, examine, and decompose this task. Then, you should solve the above tasks step by step and design a plan for the necessary steps, and accomplish the first one.
-3.2 If there are completed steps, you should grasp the completed steps and determine the current step to be completed. 
-4. You need to choose which Action (one of the [{tool}]) to complete the current step. 
-4.1 If you need use the tool 'Write File', the 'ActionInput' MUST ALWAYS in the following format:
+1. Review and understand previous agents' outputs.
+2. Analyze and decompose the task; use tools where appropriate.
+3. Decide the single current step to complete and output it in 'CurrentStep'.
+   - If no steps are completed yet, design a minimal step-by-step plan and accomplish the first step.
+   - If some steps are completed, pick the next logical step.
+4. Choose one Action from [{tool}] to execute the current step.
+   - If using 'Write File', 'ActionInput' MUST be:
 ```
 >>>file name
 file content
 >>>END
 ```
-4.2 If you have completed all the steps required to finish the task, use the action 'Final Output' and summarize the outputs of each step in the section 'ActionInput'. Provide a detailed and comprehensive final output that solves the task in this section. Please try to retain the information from each step in the section 'ActionInput'. The final output in this section should be helpful, relevant, accurate, and detailed.
-
+   - If all steps are complete, choose 'Final Output' and summarize all step outputs in 'ActionInput'. The final output must be helpful, relevant, accurate, and detailed.
 
 # Format example
-Your final output should ALWAYS in the following format:
+Your final output MUST follow this format:
 {format_example}
 
 # Attention
-1. The input task you must finish is {context}
-2. DO NOT ask any questions to the user or human.
+1. The task you must finish is: {context}
+2. Do not ask the user questions.
 3. The final output MUST be helpful, relevant, accurate, and detailed.
 -----
 '''
@@ -102,8 +101,12 @@ class CustomAction(Action):
     def _save(self, filename, content):        
         file_path = os.path.join(WORKSPACE_ROOT, filename)
 
+        # Ensure workspace exists and any subdirectories for the file are created
         if not os.path.exists(WORKSPACE_ROOT):
             os.mkdir(WORKSPACE_ROOT)
+        dir_name = os.path.dirname(file_path)
+        if dir_name and not os.path.exists(dir_name):
+            os.makedirs(dir_name, exist_ok=True)
 
         with open(file_path, mode='w+', encoding='utf-8') as f:
             f.write(content)
@@ -113,9 +116,22 @@ class CustomAction(Action):
         # for i, step in enumerate(list(self.steps)):
         #     steps += str(i+1) + '. ' + step + '\n'
 
-        previous_context = re.findall(f'## Previous Steps and Responses([\s\S]*?)## Current Step', str(context))[0]
-        task_context = re.findall('## Current Step([\s\S]*?)### Completed Steps and Responses', str(context))[0]
-        completed_steps = re.findall(f'### Completed Steps and Responses([\s\S]*?)###', str(context))[0]
+        # Robustly extract sections; fall back to empty string if anchors are missing
+        ctx_str = str(context)
+        m_prev = re.search(r'## Previous Steps and Responses([\s\S]*?)## Current Step', ctx_str)
+        previous_context = m_prev.group(1).strip() if m_prev else ""
+
+        m_task = re.search(r'## Current Step([\s\S]*?)### Completed Steps and Responses', ctx_str)
+        if not m_task:
+            # Fallback: until end of string
+            m_task = re.search(r'## Current Step([\s\S]*)', ctx_str)
+        task_context = m_task.group(1).strip() if m_task else ""
+
+        m_done = re.search(r'### Completed Steps and Responses([\s\S]*?)###', ctx_str)
+        if not m_done:
+            # Fallback: until end of string
+            m_done = re.search(r'### Completed Steps and Responses([\s\S]*)', ctx_str)
+        completed_steps = m_done.group(1).strip() if m_done else ""
         # print('-------------Previous--------------')
         # print(previous_context)
         # print('--------------Task-----------------')
@@ -139,10 +155,55 @@ class CustomAction(Action):
         rsp = await self._aask_v1(prompt, "task", OUTPUT_MAPPING)
 
         if 'Write File' in rsp.instruct_content.Action:
-            filename = re.findall('>>>(.*?)\n', str(rsp.instruct_content.ActionInput))[0]
-            content = re.findall(f'>>>{filename}([\s\S]*?)>>>END', str(rsp.instruct_content.ActionInput))[0]
-            self._save(filename, content)
-            response = f"\n{rsp.instruct_content.ActionInput}\n"
+            ai_text = str(rsp.instruct_content.ActionInput)
+
+            def _parse_write_file_block(text: str):
+                # Try several tolerant patterns
+                patterns = [
+                    r">>>\s*([^\n]+)\n([\s\S]*?)>>>END",  # canonical
+                    r">>>\s*([^\n]+)\r?\n([\s\S]*?)>>>END\s*$",  # allow trailing spaces
+                ]
+                for pat in patterns:
+                    m = re.search(pat, text)
+                    if m:
+                        fname = m.group(1).strip()
+                        content = m.group(2)
+                        return fname, content
+                # Last resort: take first line as filename and rest as content
+                lines = text.splitlines()
+                if lines:
+                    fname = lines[0].strip().lstrip('>')  # in case the model omitted markers
+                    body = "\n".join(lines[1:])
+                    if fname:
+                        return fname, body
+                return None
+
+            parsed = _parse_write_file_block(ai_text)
+            if not parsed:
+                # Attempt an LLM-based repair to enforce the exact block format
+                try:
+                    repair_prompt = (
+                        "Normalize the following Write File action input into EXACTLY this format:\n"
+                        "```\n>>>file name\nfile content\n>>>END\n```\n"
+                        "Rules:\n- Keep only one block.\n- Do not add commentary.\n- Ensure the filename is on the first line after >>>.\n- Preserve the intended file content.\n- Return ONLY the block above (no backticks).\n\n"
+                        f"Input:\n{ai_text}"
+                    )
+                    repaired = await self._aask(repair_prompt)
+                    parsed = _parse_write_file_block(repaired)
+                except Exception as e:
+                    logger.warning(f"LLM repair for Write File failed: {e}")
+
+            if parsed:
+                filename, content = parsed
+                try:
+                    self._save(filename, content)
+                    response = f"\n{ai_text}\n"
+                except Exception as e:
+                    logger.warning(f"Saving file failed: {e}")
+                    response = f"\n{ai_text}\n"
+            else:
+                logger.warning("Could not parse Write File ActionInput; echoing content without saving.")
+                response = f"\n{ai_text}\n"
         elif rsp.instruct_content.Action in self.tool:
             sas = SearchAndSummarize(serpapi_api_key=self.serpapi_api_key, llm=self.llm)
             sas_rsp = await sas.run(context=[Message(rsp.instruct_content.ActionInput)], system_text=SEARCH_AND_SUMMARIZE_SYSTEM_EN_US)
@@ -163,4 +224,3 @@ class CustomAction(Action):
         instruct_content = output_class(**parsed_data)
 
         return ActionOutput(info, instruct_content)
-

@@ -12,7 +12,7 @@ from typing import Any, Dict, Optional, Tuple
 import aiohttp
 from pydantic import BaseModel, Field
 
-from autoagents.system.config import Config
+import cfg
 
 
 class SerperWrapper(BaseModel):
@@ -23,15 +23,15 @@ class SerperWrapper(BaseModel):
     `serpapi_api_key` as a named parameter to the constructor.
     """
 
-    search_engine: Any  #: :meta private:
+    # Optional internal client; default None to satisfy Pydantic validation
+    search_engine: Optional[Any] = None  #: :meta private:
     payload: dict = Field(
         default={
             "page": 1,
             "num": 10
         }
     )
-    config = Config()
-    serper_api_key: Optional[str] = config.serper_api_key
+    serper_api_key: Optional[str] = cfg.SERPER_API_KEY
     aiosession: Optional[aiohttp.ClientSession] = None
 
     class Config:
@@ -52,12 +52,13 @@ class SerperWrapper(BaseModel):
             return url, payloads, headers
 
         url, payloads, headers = construct_url_and_payload_and_headers()
+        timeout = aiohttp.ClientTimeout(total=cfg.LLM_TIMEOUT)
         if not self.aiosession:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, data=payloads, headers=headers) as response:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(url, data=payloads, headers=headers, timeout=timeout) as response:
                     res = await response.json()
         else:
-            async with self.aiosession.get.post(url, data=payloads, headers=headers) as response:
+            async with self.aiosession.post(url, data=payloads, headers=headers, timeout=timeout) as response:
                 res = await response.json()
 
         return res

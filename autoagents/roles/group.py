@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import re
-import time
+import asyncio
 from autoagents.actions import Action, ActionOutput
 from autoagents.roles import Role
 from autoagents.system.logs import logger
@@ -94,7 +94,8 @@ class Group(Role):
                     completed_steps += f'>{self._rc.todo} Substep:\n' + response.instruct_content.Action + '\n>Subresponse:\n' + response.instruct_content.Response + '\n'
                 else:
                     consensus[i] = 1
-                time.sleep(SLEEP_RATE)
+                # Avoid blocking the event loop; yield control while waiting
+                await asyncio.sleep(SLEEP_RATE)
 
             steps += 1
 
@@ -109,7 +110,7 @@ class Group(Role):
         return msg
 
     async def _observe(self) -> int:
-        """从环境中观察，获得全部重要信息，并加入记忆"""
+        """Observe the environment, collect relevant information, and add to memory."""
         if not self._rc.env:
             return 0
         env_msgs = self._rc.env.memory.get()

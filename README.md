@@ -10,9 +10,9 @@
 
 <p align="center">
 <a href="https://arxiv.org/abs/2309.17288"><img src="https://img.shields.io/badge/cs.CV-2309.17288-b31b1b?logo=arxiv&logoColor=red" alt="Paper"></a>
-<a href="docs/README_CN.md"><img src="https://img.shields.io/badge/文档-中文版-blue.svg" alt="CN doc"></a>
+<a href="docs/README_CN.md"><img src="https://img.shields.io/badge/Docs-Chinese-blue.svg" alt="CN doc"></a>
 <a href="README.md"><img src="https://img.shields.io/badge/document-English-blue.svg" alt="EN doc"></a>
-<a href="docs/README_JA.md"><img src="https://img.shields.io/badge/ドキュメント-日本語-blue.svg" alt="JA doc"></a>
+<a href="docs/README_JA.md"><img src="https://img.shields.io/badge/Docs-Japanese-blue.svg" alt="JA doc"></a>
 <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
 </p>
 
@@ -61,28 +61,51 @@ python setup.py install
 
 ### Configuration
 
-- Configure your `OPENAI_API_KEY` in any of `config/key.yaml / config/config.yaml / env`
-- Priority order: `config/key.yaml > config/config.yaml > env`
+- Set keys via environment variables or pass them as CLI flags. YAML files are no longer required.
+- Required keys: `OPENAI_API_KEY` (or `LLM_API_KEY`) and `SERPAPI_API_KEY`.
+- Optional settings:
+  - `OPENAI_API_MODEL` (default: `gpt-4o`)
+  - `OPENAI_API_BASE`, `OPENAI_API_TYPE`, `OPENAI_API_VERSION`, `DEPLOYMENT_ID` (Azure-style OpenAI)
+  - `GLOBAL_PROXY` or `OPENAI_PROXY` for HTTP(S) proxy; or use `--proxy` flag
+  - Search engine selection via `SEARCH_ENGINE` (default: `serpapi_google`). Other keys: `SERPER_API_KEY`, `GOOGLE_API_KEY`, `GOOGLE_CSE_ID`
 
+Examples
 ```bash
-# Copy the configuration file and make the necessary modifications.
-cp config/config.yaml config/key.yaml
-```
+# Minimum required
+export OPENAI_API_KEY="sk-..."
+export SERPAPI_API_KEY="your-serpapi-key"
 
-| Variable Name                              | config/key.yaml                           | env                                             |
-| ------------------------------------------ | ----------------------------------------- | ----------------------------------------------- |
-| OPENAI_API_KEY # Replace with your own key | OPENAI_API_KEY: "sk-..."                  | export OPENAI_API_KEY="sk-..."                  |
-| OPENAI_API_BASE # Optional                 | OPENAI_API_BASE: "https://<YOUR_SITE>/v1" | export OPENAI_API_BASE="https://<YOUR_SITE>/v1" |
+# Optional: change model and set proxy
+export OPENAI_API_MODEL="gpt-4o-mini"
+export GLOBAL_PROXY="http://127.0.0.1:7890"
+
+# Optional: Azure-style OpenAI
+export OPENAI_API_TYPE="azure"
+export OPENAI_API_BASE="https://<your-azure-endpoint>/openai/deployments"
+export OPENAI_API_VERSION="2024-02-01"
+export DEPLOYMENT_ID="<your-deployment>"
+```
 
 ### Usage
-- Commandline mode:
-```python
-python main.py --mode commandline --llm_api_key YOUR_OPENAI_API_KEY --serpapi_key YOUR_SERPAPI_KEY --idea "Is LK-99 really a room temperature superconducting material?"
+- Command line mode:
+```bash
+# Using environment variables (prompts for any missing ones)
+python main.py --mode commandline --idea "Is LK-99 really a room temperature superconducting material?"
+
+# Or pass keys explicitly
+python main.py --mode commandline \
+  --llm_api_key "$OPENAI_API_KEY" \
+  --serpapi_key "$SERPAPI_API_KEY" \
+  --idea "Is LK-99 really a room temperature superconducting material?"
+
+# Optional HTTP proxy
+python main.py --mode commandline --proxy "http://127.0.0.1:7890" --idea "..."
 ```
-- Websocket service mode:
-```python
-python main.py --mode service --host "127.0.0.1" --port 9000
+- WebSocket service mode:
+```bash
+python main.py --mode service --host 127.0.0.1 --port 9000
 ```
+The service opens a WebSocket endpoint at `ws://<host>:<port>`. You can use the demo UI under `frontend/app/demo.html` by serving the `frontend/app` folder with any static HTTP server.
 
 ### Docker
 - Build docker image:
@@ -156,18 +179,7 @@ If you find our work and this repository useful, please consider giving us a sta
   doi       = {10.24963/ijcai.2024/3},
   url       = {https://doi.org/10.24963/ijcai.2024/3},
 }
-
-@article{chen2023auto,
-  title={AutoAgents: The Automatic Agents Generation Framework},
-  author={Chen, Guangyao and Dong, Siwei and Shu, Yu and Zhang, Ge and Sesay, Jaward and Karlsson, Börje F. and Fu, Jie and Shi, Yemin},
-  journal={arXiv preprint},
-  year={2023}
-}
 ```
-
-## Wechat Group
-
-<img src=".github/QRcode.jpg" alt="Wechat Group" width="200"/>
 
 ## Acknowledgements
 The [system](https://github.com/LinkSoul-AI/AutoAgents/tree/main/autoagents/system), [action_bank](https://github.com/LinkSoul-AI/AutoAgents/tree/main/autoagents/actions/action_bank) and [role_bank](https://github.com/LinkSoul-AI/AutoAgents/tree/main/autoagents/roles/role_bank) of this code base is built using [MetaGPT](https://github.com/geekan/MetaGPT)

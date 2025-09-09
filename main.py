@@ -9,6 +9,7 @@ import logging
 from autoagents.roles import Manager, ObserverAgents, ObserverPlans
 from autoagents.explorer import Explorer
 import startup
+import cfg
 import ws_service
 
 logging.basicConfig(level=logging.WARNING, format='%(asctime)s | %(levelname)-8s | %(module)s:%(funcName)s:%(lineno)d - %(message)s')
@@ -18,6 +19,11 @@ def signal_handler(signal, frame):
     sys.exit(1)
 
 async def commanline(investment: float = 10.0, n_round: int = 3, proxy: str = None, llm_api_key: str = None, serpapi_key: str=None, idea: str=None):
+    # Prefer env/config values; prompt only if missing
+    if not llm_api_key:
+        llm_api_key = cfg.LLM_API_KEY or None
+    if not serpapi_key:
+        serpapi_key = cfg.SERPAPI_API_KEY or None
     if llm_api_key is None:
         print("OpenAI API key:")
         llm_api_key = input().strip()
@@ -30,6 +36,9 @@ async def commanline(investment: float = 10.0, n_round: int = 3, proxy: str = No
     await startup.startup(idea, investment, n_round, llm_api_key=llm_api_key, serpapi_key=serpapi_key, proxy=proxy)
 
 async def service(host: str = "localhost", port: int = 9000, proxy: str=None, llm_api_key: str=None, serpapi_key: str=None):
+    # If not provided by CLI args, prefer env/config values
+    llm_api_key = llm_api_key or cfg.LLM_API_KEY or None
+    serpapi_key = serpapi_key or cfg.SERPAPI_API_KEY or None
     await ws_service.run_service(host=host, port=port, proxy=proxy, llm_api_key=llm_api_key, serpapi_key=serpapi_key)
 
 
@@ -37,7 +46,7 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
 
     parser = argparse.ArgumentParser(description="AutoAgents")
-    ### TODO: set mode default to commandline
+    ### TODO: Set default value of mode to commandline (already set)
     parser.add_argument("--mode", default="commandline", choices=["commandline", "service"], help="mode=commandline, service")
     parser.add_argument("--host", default="127.0.0.1", help="websocket backend service host")
     parser.add_argument("--port", default=9000, type=int, help="websocket backend service port")

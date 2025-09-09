@@ -87,7 +87,7 @@ class Engineer(Role):
         try:
             shutil.rmtree(workspace)
         except FileNotFoundError:
-            pass  # 文件夹不存在，但我们不在意
+            pass  # Folder does not exist; ignore
         workspace.mkdir(parents=True, exist_ok=True)
 
     def write_file(self, filename: str, code: str):
@@ -157,18 +157,20 @@ class Engineer(Role):
         code_msg_all = [] # gather all code info, will pass to qa_engineer for tests later
         for todo in self.todos:
             """
-            # 从历史信息中挑选必须的信息，以减少prompt长度（人工经验总结）
-            1. Architect全部
-            2. ProjectManager全部
-            3. 是否需要其他代码（暂时需要）？
-            TODO:目标是不需要。在任务拆分清楚后，根据设计思路，不需要其他代码也能够写清楚单个文件，如果不能则表示还需要在定义的更清晰，这个是代码能够写长的关键
+            Select only necessary information from history to reduce prompt length:
+            1. Include all from Architect
+            2. Include all from ProjectManager
+            3. Whether other code is needed (temporarily yes)?
+               TODO: Ideally no. After clear task decomposition and design, a single file
+               should be writable without additional code. If not, definitions need to be
+               clarified further; this is key to generating longer, coherent code.
             """
             context = []
             msg = self._rc.memory.get_by_actions([WriteDesign, WriteTasks, WriteCode])
             for m in msg:
                 context.append(m.content)
             context_str = "\n".join(context)
-            # 编写code
+            # Generate code
             code = await WriteCode(llm=self._llm).run(
                 context=context_str,
                 filename=todo

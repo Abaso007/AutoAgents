@@ -21,10 +21,12 @@ from .actions import Requirement
 from .roles import CustomRole, ActionObserver, Group, ROLES_LIST, ROLES_MAPPING
 
 from .system.memory import Memory
+from .system.const import WORKSPACE_ROOT
+from pathlib import Path
 from .system.schema import Message
 
 class Environment(BaseModel):
-    """环境，承载一批角色，角色可以向环境发布消息，可以被其他角色观察到"""
+    """Environment hosting multiple roles; roles publish messages here, observable by others."""
 
     roles: dict[str, Role] = Field(default_factory=dict)
     memory: Memory = Field(default_factory=Memory)
@@ -39,23 +41,24 @@ class Environment(BaseModel):
     llm_api_key: str = Field(default='')
     serpapi_key: str = Field(default='')
     alg_msg_queue: object = Field(default=None)
+    log_dir: Path | None = Field(default=None)
 
     class Config:
         arbitrary_types_allowed = True
 
 
     def add_role(self, role: Role):
-        """增加一个在当前环境的Role"""
+        """Add a Role to the current environment."""
         role.set_env(self)
         self.roles[role.profile] = role
 
     def add_roles(self, roles: Iterable[Role]):
-        """增加一批在当前环境的Role"""
+        """Add multiple Roles to the current environment."""
         for role in roles:
             self.add_role(role)
 
     def _parser_roles(self, text):
-        """解析添加的Roles"""
+        """Parse role definitions to be added from text."""
         agents = re.findall('{[\s\S]*?}', text) # re.findall('{{.*}}', agents)
         agents_args = []
         for agent in agents:
@@ -70,7 +73,7 @@ class Environment(BaseModel):
         return agents_args
     
     def _parser_plan(self, context):
-        """解析生成的计划Plan"""
+        """Parse the generated execution plan from context."""
         plan_context = re.findall('## Execution Plan([\s\S]*?)##', str(context))[0]
         steps = [v.split("\n")[0] for v in re.split("\n\d+\. ", plan_context)[1:]]
         print('---------------Steps---------------')
@@ -81,7 +84,7 @@ class Environment(BaseModel):
         return steps
     
     def create_roles(self, plan: list, args: dict):
-        """创建Role""" 
+        """Create role(s) based on the plan and args.""" 
 
         requirement_type = type('Requirement_Group', (Requirement,), {})
         self.add_role(Group(roles=args, steps=plan, watch_actions=[Requirement,requirement_type],  proxy=self.proxy, serpapi_api_key=self.serpapi_key, llm_api_key=self.llm_api_key))
@@ -125,10 +128,68 @@ class Environment(BaseModel):
         # self.add_role(ActionObserver(steps=plan, watch_actions=init_actions, init_actions=watch_actions, proxy=self.proxy, llm_api_key=self.llm_api_key))
 
     async def publish_message(self, message: Message):
-        """向当前环境发布信息"""
+        """Publish a message to the current environment."""
         # self.message_queue.put(message)
         self.memory.add(message)
         self.history += f"\n{message}"
+
+        # Initialize per-task log directory on first message
+        if self.log_dir is None:
+            try:
+                safe_task = (self.task_id or timestamp()).replace('/', '-').replace(' ', '_')
+                base = WORKSPACE_ROOT / 'agents_logs' / safe_task
+                base.mkdir(parents=True, exist_ok=True)
+                self.log_dir = base
+            except Exception:
+                # Fallback: ensure workspace exists and continue without raising
+                (WORKSPACE_ROOT / 'agents_logs').mkdir(parents=True, exist_ok=True)
+
+        # Persist environment history and per-agent process/result
+        try:
+            # Save full environment history
+            if self.log_dir:
+                history_path = self.log_dir / 'history.md'
+                history_path.write_text(self.history)
+
+                # Per-agent logs
+                role_name = (message.role or 'Unknown').strip()
+                # Skip empty/observer-only roles in dedicated dirs if needed
+                safe_role = role_name.replace('/', '-').replace(' ', '_')
+                role_dir = self.log_dir / safe_role
+                role_dir.mkdir(parents=True, exist_ok=True)
+
+                # Append to process log
+                process_path = role_dir / 'process.md'
+                with process_path.open('a', encoding='utf-8') as f:
+                    f.write(f"\n## [{timestamp()}] {role_name}\n")
+                    if message.cause_by:
+                        f.write(f"Action: {getattr(message.cause_by, '__name__', str(message.cause_by))}\n\n")
+                    content = message.instruct_content.dict() if getattr(message, 'instruct_content', None) else None
+                    if content:
+                        f.write("Content (instruct):\n")
+                        for k, v in content.items():
+                            f.write(f"- {k}: {v}\n")
+                        f.write("\n")
+                    f.write("Message:\n")
+                    f.write(str(message.content).rstrip() + "\n")
+
+                # Update latest result for this agent
+                result_path = role_dir / 'result.md'
+                # Prefer a clean result: instruct Response if present, else content
+                result_text = None
+                if getattr(message, 'instruct_content', None):
+                    try:
+                        ic = message.instruct_content
+                        # Common keys: Response or summary-like
+                        result_text = getattr(ic, 'Response', None) or getattr(ic, 'Summary', None)
+                    except Exception:
+                        result_text = None
+                if not result_text:
+                    result_text = message.content
+                result_path.write_text(str(result_text))
+        except Exception:
+            # Logging to files should never break runtime
+            pass
 
         if 'Manager' in message.role:
             self.steps = self._parser_plan(message.content)
@@ -179,7 +240,7 @@ class Environment(BaseModel):
 
 
     async def run(self, k=1):
-        """处理一次所有Role的运行"""
+        """Run all roles once per round, for k rounds."""
         old_roles = []
         for _ in range(k):
             futures = []
@@ -203,9 +264,26 @@ class Environment(BaseModel):
                 await asyncio.gather(*futures)
 
     def get_roles(self) -> dict[str, Role]:
-        """获得环境内的所有Role"""
+        """Get all roles in the environment."""
         return self.roles
 
     def get_role(self, name: str) -> Role:
-        """获得环境内的指定Role"""
+        """Get a specific role in the environment by name."""
         return self.roles.get(name, None)
+
+# Ensure pydantic forward refs for RoleContext.env -> Environment are resolved
+# This supports both Pydantic v1 (update_forward_refs) and v2 (model_rebuild).
+try:
+    from .roles.role import RoleContext
+    try:
+        # Pydantic v2
+        RoleContext.model_rebuild(_types_namespace={'Environment': Environment})
+    except Exception:
+        # Pydantic v1
+        try:
+            RoleContext.update_forward_refs(Environment=Environment)
+        except Exception:
+            pass
+except Exception:
+    # If imports fail during partial initialization, skip silently
+    pass

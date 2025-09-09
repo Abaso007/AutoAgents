@@ -22,7 +22,7 @@ class ObserverPlans(Role):
         self._watch([CreateRoles,CheckRoles])
 
     async def _observe(self) -> int:
-        """从环境中观察，获得全部重要信息，并加入记忆"""
+        """Observe the environment, collect relevant information, and add to memory."""
         if not self._rc.env:
             return 0
         env_msgs = self._rc.env.memory.get()

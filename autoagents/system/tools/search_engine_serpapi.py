@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional, Tuple
 import aiohttp
 from pydantic import BaseModel, Field
 
-from autoagents.system.config import Config
+import cfg
 
 
 class SerpAPIWrapper(BaseModel):
@@ -22,7 +22,8 @@ class SerpAPIWrapper(BaseModel):
     `serpapi_api_key` as a named parameter to the constructor.
     """
 
-    search_engine: Any  #: :meta private:
+    # Optional internal client; default None to satisfy Pydantic validation
+    search_engine: Optional[Any] = None  #: :meta private:
     params: dict = Field(
         default={
             "engine": "google",
@@ -31,8 +32,7 @@ class SerpAPIWrapper(BaseModel):
             "hl": "en",
         }
     )
-    config = Config()
-    serpapi_api_key: Optional[str] = config.serpapi_api_key
+    serpapi_api_key: Optional[str] = cfg.SERPAPI_API_KEY
     aiosession: Optional[aiohttp.ClientSession] = None
 
     class Config:
@@ -55,12 +55,13 @@ class SerpAPIWrapper(BaseModel):
             return url, params
 
         url, params = construct_url_and_params()
+        timeout = aiohttp.ClientTimeout(total=cfg.LLM_TIMEOUT)
         if not self.aiosession:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, params=params) as response:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url, params=params, timeout=timeout) as response:
                     res = await response.json()
         else:
-            async with self.aiosession.get(url, params=params) as response:
+            async with self.aiosession.get(url, params=params, timeout=timeout) as response:
                 res = await response.json()
 
         return res

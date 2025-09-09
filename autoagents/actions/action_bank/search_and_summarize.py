@@ -5,10 +5,10 @@
 @Author  : alexanderwu
 @From    : https://github.com/geekan/MetaGPT/blob/main/metagpt/actions/search_and_summarize.py
 """
-import time
+import asyncio
 
 from autoagents.actions import Action
-from autoagents.system.config import Config
+import cfg
 from autoagents.system.logs import logger
 from autoagents.system.schema import Message
 from autoagents.system.tools.search_engine import SearchEngine
@@ -102,17 +102,17 @@ You are a member of a professional butler team and will provide helpful suggesti
 
 class SearchAndSummarize(Action):
     def __init__(self, name="", context=None, llm=None, engine=None, search_func=None, serpapi_api_key=None):
-        self.config = Config()
+        # Config from centralized cfg
         self.serpapi_api_key = serpapi_api_key
-        self.engine = engine or self.config.search_engine
+        self.engine = engine or cfg.SEARCH_ENGINE
         self.search_engine = SearchEngine(self.engine, run_func=search_func, serpapi_api_key=serpapi_api_key)
         self.result = ""
         super().__init__(name, context, llm, serpapi_api_key)
 
     async def run(self, context: list[Message], system_text=SEARCH_AND_SUMMARIZE_SYSTEM) -> str:
-        no_serpapi = not self.config.serpapi_api_key or 'YOUR_API_KEY' == self.config.serpapi_api_key
-        no_serper = not self.config.serper_api_key or 'YOUR_API_KEY' == self.config.serper_api_key
-        no_google = not self.config.google_api_key or 'YOUR_API_KEY' == self.config.google_api_key
+        no_serpapi = not cfg.SERPAPI_API_KEY or 'YOUR_API_KEY' == cfg.SERPAPI_API_KEY
+        no_serper = not cfg.SERPER_API_KEY or 'YOUR_API_KEY' == cfg.SERPER_API_KEY
+        no_google = not cfg.GOOGLE_API_KEY or 'YOUR_API_KEY' == cfg.GOOGLE_API_KEY
         no_self_serpapi = self.serpapi_api_key is None
 
         if no_serpapi and no_google and no_serper and no_self_serpapi:
@@ -131,7 +131,7 @@ class SearchAndSummarize(Action):
                 if try_count >= 3:
                     # Retry 3 times to fail
                     raise e
-                time.sleep(1)
+                await asyncio.sleep(1)
 
         self.result = rsp
         if not rsp:

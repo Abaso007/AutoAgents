@@ -8,10 +8,10 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from autoagents.system.config import Config
+import cfg
 
 class BaseStore(ABC):
-    """FIXME: consider add_index, set_index and think 颗粒度"""
+    """FIXME: Consider add_index, set_index, and appropriate granularity."""
 
     @abstractmethod
     def search(self, query, *args, **kwargs):
@@ -30,7 +30,7 @@ class LocalStore(BaseStore, ABC):
     def __init__(self, raw_data: Path, cache_dir: Path = None):
         if not raw_data:
             raise FileNotFoundError
-        self.config = Config()
+        # Config not required here; using centralized cfg when needed by subclasses
         self.raw_data = raw_data
         if not cache_dir:
             cache_dir = raw_data.parent
